@@ -1,7 +1,9 @@
 #include "dns_packet.hpp"
+#include "dns_record.hpp"
 #include <arpa/inet.h>
 #include <cstddef>
 #include <cstring>
+#include <iostream>
 #include <string>
 #include <utility>
 
@@ -15,6 +17,15 @@ bool read_u16(const uint8_t *data, size_t len, size_t &offset, uint16_t &out) {
     std::memcpy(&out, data + offset, sizeof(uint16_t));
     out = ntohs(out);
     offset += 2;
+    return true;
+}
+
+bool read_u32(const uint8_t *data, size_t len, size_t &offset, uint32_t &out) {
+    if (offset + 4 > len)
+        return false;
+    std::memcpy(&out, data + offset, sizeof(uint32_t));
+    out = ntohl(out);
+    offset += 4;
     return true;
 }
 
@@ -97,6 +108,12 @@ void write_u16(std::vector<uint8_t> &out, uint16_t value) {
     out.insert(out.end(), ptr, ptr + 2);
 }
 
+void write_u32(std::vector<uint8_t> &out, uint32_t value) {
+    uint32_t be = htonl(value);
+    const auto *ptr = reinterpret_cast<const uint8_t *>(&be);
+    out.insert(out.end(), ptr, ptr + 4);
+}
+
 bool write_name(std::vector<uint8_t> &out, const std::string &name) {
     if (name.empty()) {
         out.push_back(0);
@@ -173,28 +190,136 @@ bool DNSPacket::parse(const uint8_t *data, size_t len) {
         questions.push_back(std::move(q));
     }
 
+    answers.clear();
+    answers.reserve(header.ancount);
+    for (uint16_t i = 0; i < header.ancount; ++i) {
+        ResourceRecord rr;
+        if (!parse_name(data, len, offset, rr.name))
+            return false;
+        if (!read_u16(data, len, offset, rr.type))
+            return false;
+        if (!read_u16(data, len, offset, rr.rclass))
+            return false;
+        if (!read_u32(data, len, offset, rr.ttl))
+            return false;
+
+        uint16_t rdlength;
+        if (!read_u16(data, len, offset, rdlength))
+            return false;
+
+        if (offset + rdlength > len)
+            return false;
+
+        rr.rdata.assign(data + offset, data + offset + rdlength);
+        offset += rdlength;
+
+        answers.push_back(std::move(rr));
+    }
+
+    authorities.clear();
+    authorities.reserve(header.nscount);
+    for (uint16_t i = 0; i < header.nscount; ++i) {
+        ResourceRecord rr;
+        if (!parse_name(data, len, offset, rr.name))
+            return false;
+        if (!read_u16(data, len, offset, rr.type))
+            return false;
+        if (!read_u16(data, len, offset, rr.rclass))
+            return false;
+        if (!read_u32(data, len, offset, rr.ttl))
+            return false;
+
+        uint16_t rdlength;
+        if (!read_u16(data, len, offset, rdlength))
+            return false;
+
+        if (offset + rdlength > len)
+            return false;
+
+        rr.rdata.assign(data + offset, data + offset + rdlength);
+        offset += rdlength;
+
+        authorities.push_back(std::move(rr));
+    }
+
+    additionals.clear();
+    additionals.reserve(header.arcount);
+    for (uint16_t i = 0; i < header.arcount; ++i) {
+        ResourceRecord rr;
+        if (!parse_name(data, len, offset, rr.name))
+            return false;
+        if (!read_u16(data, len, offset, rr.type))
+            return false;
+        if (!read_u16(data, len, offset, rr.rclass))
+            return false;
+        if (!read_u32(data, len, offset, rr.ttl))
+            return false;
+
+        uint16_t rdlength;
+        if (!read_u16(data, len, offset, rdlength))
+            return false;
+
+        if (offset + rdlength > len)
+            return false;
+
+        rr.rdata.assign(data + offset, data + offset + rdlength);
+        offset += rdlength;
+
+        additionals.push_back(std::move(rr));
+    }
+
     return true;
 }
 
 std::vector<uint8_t> DNSPacket::serialize() const {
     std::vector<uint8_t> result;
 
-    // Header
     write_u16(result, header.id);
     write_u16(result, header.flags);
     write_u16(result, static_cast<uint16_t>(questions.size()));
-    write_u16(result, header.ancount);
-    write_u16(result, header.nscount);
-    write_u16(result, header.arcount);
+    write_u16(result, static_cast<uint16_t>(answers.size()));
+    write_u16(result, static_cast<uint16_t>(authorities.size()));
+    write_u16(result, static_cast<uint16_t>(additionals.size()));
 
-    // Questions
     for (const auto &q : questions) {
         if (!write_name(result, q.qname)) {
-            // Return an empty packet if any name is invalid for wire format.
             return {};
         }
         write_u16(result, q.qtype);
         write_u16(result, q.qclass);
+    }
+
+    for (const auto &rr : answers) {
+        if (!write_name(result, rr.name)) {
+            return {};
+        }
+        write_u16(result, rr.type);
+        write_u16(result, rr.rclass);
+        write_u32(result, rr.ttl);
+        write_u16(result, static_cast<uint16_t>(rr.rdata.size()));
+        result.insert(result.end(), rr.rdata.begin(), rr.rdata.end());
+    }
+
+    for (const auto &rr : authorities) {
+        if (!write_name(result, rr.name)) {
+            return {};
+        }
+        write_u16(result, rr.type);
+        write_u16(result, rr.rclass);
+        write_u32(result, rr.ttl);
+        write_u16(result, static_cast<uint16_t>(rr.rdata.size()));
+        result.insert(result.end(), rr.rdata.begin(), rr.rdata.end());
+    }
+
+    for (const auto &rr : additionals) {
+        if (!write_name(result, rr.name)) {
+            return {};
+        }
+        write_u16(result, rr.type);
+        write_u16(result, rr.rclass);
+        write_u32(result, rr.ttl);
+        write_u16(result, static_cast<uint16_t>(rr.rdata.size()));
+        result.insert(result.end(), rr.rdata.begin(), rr.rdata.end());
     }
 
     return result;
@@ -205,17 +330,72 @@ std::vector<uint8_t> DNSPacket::serialize() const {
 int main() {
     dns::DNSPacket packet;
 
-    // Test DNS header parsing
-    uint8_t data[] = {
-        0x00, 0x01, // ID: 1
-        0x01, 0x00, // Flags: standard query
-        0x00, 0x01, // QDCOUNT: 1
-        0x00, 0x00, // ANCOUNT: 0
-        0x00, 0x00, // NSCOUNT: 0
-        0x00, 0x00  // ARCOUNT: 0
-    };
+    uint8_t query_data[] = {0x00, 0x01, // ID: 1
+                            0x01, 0x00, // Flags: standard query
+                            0x00, 0x01, // QDCOUNT: 1
+                            0x00, 0x00, // ANCOUNT: 0
+                            0x00, 0x00, // NSCOUNT: 0
+                            0x00, 0x00, // ARCOUNT: 0
+                            0x03, 'w',  'w',  'w',  0x07, 'e',  'x',
+                            'a',  'm',  'p',  'l',  'e',  0x03, 'c',
+                            'o',  'm',  0x00, 0x00, 0x01, 0x00, 0x01};
 
-    packet.parse(data, sizeof(data));
+    if (!packet.parse(query_data, sizeof(query_data))) {
+        std::cerr << "Failed to parse DNS query\n";
+        return 1;
+    }
+
+    std::cout << "Parsed DNS Query:\n";
+    std::cout << "  ID: " << packet.header.id << "\n";
+    std::cout << "  Questions: " << packet.questions.size() << "\n";
+    if (!packet.questions.empty()) {
+        std::cout << "    Name: " << packet.questions[0].qname << "\n";
+        std::cout << "    Type: " << packet.questions[0].qtype << "\n";
+        std::cout << "    Class: " << packet.questions[0].qclass << "\n";
+    }
+
+    dns::DNSPacket response;
+    response.header.id = packet.header.id;
+    response.header.flags = 0x8180;
+    response.questions = packet.questions;
+
+    dns::DNSPacket::ResourceRecord rr;
+    rr.name = "www.example.com";
+    rr.type = 1;
+    rr.rclass = 1;
+    rr.ttl = 3600;
+
+    dns::ARecord a_record("192.168.1.10");
+    rr.rdata = a_record.serialize();
+
+    response.answers.push_back(rr);
+
+    auto response_data = response.serialize();
+    std::cout << "\nSerialized DNS Response (" << response_data.size()
+              << " bytes)\n";
+
+    dns::DNSPacket parsed_response;
+    if (!parsed_response.parse(response_data.data(), response_data.size())) {
+        std::cerr << "Failed to parse serialized response\n";
+        return 1;
+    }
+
+    std::cout << "Parsed DNS Response:\n";
+    std::cout << "  ID: " << parsed_response.header.id << "\n";
+    std::cout << "  Answers: " << parsed_response.answers.size() << "\n";
+    if (!parsed_response.answers.empty()) {
+        const auto &answer = parsed_response.answers[0];
+        std::cout << "    Name: " << answer.name << "\n";
+        std::cout << "    Type: " << answer.type << "\n";
+        std::cout << "    TTL: " << answer.ttl << "\n";
+
+        auto record =
+            dns::parse_rdata(static_cast<dns::RecordType>(answer.type),
+                             answer.rdata.data(), answer.rdata.size());
+        if (record) {
+            std::cout << "    RDATA: " << record->to_string() << "\n";
+        }
+    }
 
     return 0;
 }

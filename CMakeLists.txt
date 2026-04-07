@@ -9,5 +9,5 @@ find_package(Threads REQUIRED)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-add_executable(dns-server src/dns_packet.cpp)
+add_executable(dns-server src/dns_packet.cpp src/dns_record.cpp)
 target_link_libraries(dns-server PRIVATE Threads::Threads)
