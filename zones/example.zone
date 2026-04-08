@@ -1,0 +1,17 @@
+$ORIGIN example.local.
+$TTL 3600
+
+@       IN      SOA     ns.example.local. admin.example.local. (
+                        2024032501  ; Serial
+                        3600        ; Refresh
+                        1800        ; Retry
+                        604800      ; Expire
+                        86400       ; Minimum TTL
+                        )
+
+@       IN      NS      ns.example.local.
+@       IN      A       192.168.1.10
+www     IN      A       192.168.1.10
+www     IN      AAAA    2001:db8::1
+mail    IN      A       192.168.1.20
+blog    IN      CNAME   www

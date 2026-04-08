@@ -13,18 +13,12 @@ enum class RecordType : uint16_t {
     NS = 2,
     CNAME = 5,
     SOA = 6,
-    PTR = 12,
-    MX = 15,
-    TXT = 16,
     AAAA = 28
 };
 
 // DNS class constants
 enum class RecordClass : uint16_t {
     IN = 1, // Internet
-    CS = 2, // CSNET
-    CH = 3, // CHAOS
-    HS = 4  // Hesiod
 };
 
 // Base class for DNS records
