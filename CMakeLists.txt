@@ -9,13 +9,16 @@ find_package(Threads REQUIRED)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-add_executable(dns-server src/main.cpp src/dns_packet.cpp src/dns_record.cpp src/zone_loader.cpp src/resolver.cpp src/udp_server.cpp src/logger.cpp src/config.cpp src/thread_pool.cpp)
+add_executable(dns-server src/main.cpp src/dns_packet.cpp src/dns_record.cpp src/zone_loader.cpp src/resolver.cpp src/udp_server.cpp src/logger.cpp src/config.cpp src/thread_pool.cpp src/cache.cpp)
 target_link_libraries(dns-server PRIVATE Threads::Threads)
 
 enable_testing()
 add_executable(logger_test tests/logger_test.cpp src/logger.cpp)
 add_executable(config_test tests/config_test.cpp src/config.cpp)
+add_executable(cache_test tests/cache_test.cpp src/cache.cpp src/dns_packet.cpp src/dns_record.cpp)
 target_link_libraries(logger_test PRIVATE Threads::Threads)
 target_link_libraries(config_test PRIVATE Threads::Threads)
+target_link_libraries(cache_test PRIVATE Threads::Threads)
 add_test(NAME LoggerTest COMMAND logger_test)
+add_test(NAME CacheTest COMMAND cache_test)
 file(COPY config.ini DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
