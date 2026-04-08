@@ -4,6 +4,14 @@
 
 namespace dns {
 
+// Normalize domain name to FQDN with trailing dot
+static std::string normalize_name(const std::string &name) {
+    if (name.empty() || name.back() == '.') {
+        return name;
+    }
+    return name + '.';
+}
+
 Resolver::Resolver(ZoneLoader &zone_loader) : zone_loader_(zone_loader) {}
 
 DNSPacket Resolver::resolve(const DNSPacket &query) {
@@ -19,10 +27,12 @@ DNSPacket Resolver::resolve(const DNSPacket &query) {
     response.questions.push_back(question);
     response.header.qdcount = 1;
 
+    std::string qname = normalize_name(question.qname);
+
     RecordType query_type = static_cast<RecordType>(question.qtype);
 
     if (query_type == RecordType::A || query_type == RecordType::AAAA) {
-        if (follow_cname_chain(question.qname, query_type, response.answers)) {
+        if (follow_cname_chain(qname, query_type, response.answers)) {
             set_response_flags(response.header, true, 0);
             response.header.ancount =
                 static_cast<uint16_t>(response.answers.size());
@@ -30,7 +40,7 @@ DNSPacket Resolver::resolve(const DNSPacket &query) {
             set_response_flags(response.header, true, 3);
         }
     } else {
-        auto records = zone_loader_.get_records(question.qname, query_type);
+        auto records = zone_loader_.get_records(qname, query_type);
         if (!records.empty()) {
             response.answers = std::move(records);
             response.header.ancount =
@@ -52,7 +62,9 @@ bool Resolver::follow_cname_chain(
         return false;
     }
 
-    auto direct_records = zone_loader_.get_records(start_name, target_type);
+    std::string search_name = normalize_name(start_name);
+
+    auto direct_records = zone_loader_.get_records(search_name, target_type);
     if (!direct_records.empty()) {
         answer_records.insert(answer_records.end(), direct_records.begin(),
                               direct_records.end());
@@ -60,7 +72,7 @@ bool Resolver::follow_cname_chain(
     }
 
     auto cname_records =
-        zone_loader_.get_records(start_name, RecordType::CNAME);
+        zone_loader_.get_records(search_name, RecordType::CNAME);
 
     if (cname_records.empty()) {
         return false;
@@ -82,11 +94,7 @@ bool Resolver::follow_cname_chain(
             return false;
         }
 
-        std::string target_name = cname->cname();
-
-        if (target_name.empty() || target_name.back() != '.') {
-            target_name += '.';
-        }
+        std::string target_name = normalize_name(cname->cname());
 
         if (follow_cname_chain(target_name, target_type, answer_records,
                                depth + 1)) {
