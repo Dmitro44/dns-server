@@ -1,3 +1,4 @@
+#include "resolver.hpp"
 #include "zone_loader.hpp"
 #include <iomanip>
 #include <iostream>
@@ -88,6 +89,73 @@ int main() {
         }
         std::cout << "\n";
     }
+
+    std::cout << "\n=== DNS Resolver Tests ===\n\n";
+
+    dns::Resolver resolver(loader);
+
+    auto test_query = [&](const std::string &qname, uint16_t qtype,
+                          const std::string &desc) {
+        std::cout << "Test: " << desc << "\n";
+        std::cout << "Query: " << qname
+                  << " (Type: " << record_type_to_string(qtype) << ")\n";
+
+        dns::DNSPacket query;
+        query.header.id = 12345;
+        query.header.flags = 0;
+        query.header.qdcount = 1;
+
+        dns::DNSPacket::Question q;
+        q.qname = qname;
+        q.qtype = qtype;
+        q.qclass = 1;
+        query.questions.push_back(q);
+
+        dns::DNSPacket response = resolver.resolve(query);
+
+        uint16_t flags = response.header.flags;
+        bool is_response = (flags >> 15) & 1;
+        bool authoritative = (flags >> 10) & 1;
+        bool recursion_available = (flags >> 7) & 1;
+        uint8_t rcode = flags & 0x0F;
+
+        std::cout << "Response ID: " << response.header.id
+                  << " | QR=" << is_response << " | AA=" << authoritative
+                  << " | RA=" << recursion_available
+                  << " | RCODE=" << (int)rcode << "\n";
+
+        if (rcode == 0) {
+            std::cout << "Answers (" << response.answers.size() << "):\n";
+            for (const auto &ans : response.answers) {
+                std::cout << "  " << ans.name << " "
+                          << record_type_to_string(ans.type) << " "
+                          << rdata_to_string(ans.type, ans.rdata) << "\n";
+            }
+        } else if (rcode == 3) {
+            std::cout << "Result: NXDOMAIN (domain not found)\n";
+        } else if (rcode == 2) {
+            std::cout << "Result: SERVFAIL (server failure)\n";
+        }
+
+        std::cout << "\n";
+    };
+
+    test_query("www.example.local.", static_cast<uint16_t>(dns::RecordType::A),
+               "Direct A record query");
+
+    test_query("www.example.local.",
+               static_cast<uint16_t>(dns::RecordType::AAAA),
+               "Direct AAAA record query");
+
+    test_query("blog.example.local.", static_cast<uint16_t>(dns::RecordType::A),
+               "CNAME chain resolution (blog -> www)");
+
+    test_query("nonexistent.example.local.",
+               static_cast<uint16_t>(dns::RecordType::A),
+               "Non-existent domain (NXDOMAIN)");
+
+    test_query("example.local.", static_cast<uint16_t>(dns::RecordType::NS),
+               "NS record query");
 
     return 0;
 }

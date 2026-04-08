@@ -107,7 +107,19 @@ std::unique_ptr<DNSRecord> parse_rdata(RecordType type, const uint8_t *rdata,
         break;
 
     case RecordType::CNAME: {
-        std::string cname(reinterpret_cast<const char *>(rdata), rdata_len);
+        std::string cname;
+        size_t pos = 0;
+        while (pos < rdata_len) {
+            uint8_t len = rdata[pos++];
+            if (len == 0)
+                break;
+            if (pos + len > rdata_len)
+                break;
+            if (!cname.empty())
+                cname += ".";
+            cname.append(reinterpret_cast<const char *>(rdata + pos), len);
+            pos += len;
+        }
         return std::make_unique<CNAMERecord>(std::move(cname));
     }
 
