@@ -9,5 +9,10 @@ find_package(Threads REQUIRED)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-add_executable(dns-server src/main.cpp src/dns_packet.cpp src/dns_record.cpp src/zone_loader.cpp src/resolver.cpp src/udp_server.cpp)
+add_executable(dns-server src/main.cpp src/dns_packet.cpp src/dns_record.cpp src/zone_loader.cpp src/resolver.cpp src/udp_server.cpp src/logger.cpp)
 target_link_libraries(dns-server PRIVATE Threads::Threads)
+
+enable_testing()
+add_executable(logger_test tests/logger_test.cpp src/logger.cpp)
+target_link_libraries(logger_test PRIVATE Threads::Threads)
+add_test(NAME LoggerTest COMMAND logger_test)
