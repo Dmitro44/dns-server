@@ -1,3 +1,4 @@
+#include "config.hpp"
 #include "logger.hpp"
 #include "resolver.hpp"
 #include "udp_server.hpp"
@@ -13,12 +14,14 @@ void signal_handler(int signum) {
     }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     Logger::getInstance().setLevel(LogLevel::DEBUG);
     LOG_INFO("DNS Server starting...");
 
+    Config config = Config::load(argc, argv);
+
     dns::ZoneLoader loader;
-    if (!loader.load("zones/example.zone")) {
+    if (!loader.load(config.zone_file)) {
         LOG_ERROR("Failed to load zone file");
         return 1;
     }
@@ -26,7 +29,7 @@ int main() {
     dns::Resolver resolver(loader);
 
     try {
-        g_server = std::make_unique<dns::UDPServer>(5353, resolver);
+        g_server = std::make_unique<dns::UDPServer>(config.port, resolver);
 
         signal(SIGINT, signal_handler);
         signal(SIGTERM, signal_handler);
