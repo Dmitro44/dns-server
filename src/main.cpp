@@ -1,8 +1,8 @@
+#include "logger.hpp"
 #include "resolver.hpp"
 #include "udp_server.hpp"
 #include "zone_loader.hpp"
 #include <csignal>
-#include <iostream>
 #include <memory>
 
 std::unique_ptr<dns::UDPServer> g_server;
@@ -14,11 +14,12 @@ void signal_handler(int signum) {
 }
 
 int main() {
-    std::cout << "DNS Server starting...\n";
+    Logger::getInstance().setLevel(LogLevel::DEBUG);
+    LOG_INFO("DNS Server starting...");
 
     dns::ZoneLoader loader;
     if (!loader.load("zones/example.zone")) {
-        std::cerr << "Failed to load zone file\n";
+        LOG_ERROR("Failed to load zone file");
         return 1;
     }
 
@@ -33,7 +34,7 @@ int main() {
         g_server->start();
 
     } catch (const std::exception &e) {
-        std::cerr << "Error: " << e.what() << "\n";
+        LOG_ERROR("Error: " << e.what());
         return 1;
     }
 

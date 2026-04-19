@@ -1,6 +1,6 @@
 #include "resolver.hpp"
 #include "dns_record.hpp"
-#include <iostream>
+#include "logger.hpp"
 
 namespace dns {
 
@@ -58,7 +58,7 @@ bool Resolver::follow_cname_chain(
     const std::string &start_name, RecordType target_type,
     std::vector<DNSPacket::ResourceRecord> &answer_records, int depth) {
     if (depth >= MAX_CNAME_DEPTH) {
-        std::cerr << "CNAME chain too deep, possible loop detected\n";
+        LOG_WARNING("CNAME chain too deep, possible loop detected for " << start_name);
         return false;
     }
 
@@ -84,13 +84,13 @@ bool Resolver::follow_cname_chain(
         auto parsed = parse_rdata(RecordType::CNAME, cname_rec.rdata.data(),
                                   cname_rec.rdata.size());
         if (!parsed) {
-            std::cerr << "Failed to parse CNAME rdata\n";
+            LOG_ERROR("Failed to parse CNAME rdata");
             return false;
         }
 
         auto *cname = dynamic_cast<CNAMERecord *>(parsed.get());
         if (!cname) {
-            std::cerr << "CNAME record type mismatch\n";
+            LOG_ERROR("CNAME record type mismatch");
             return false;
         }
 

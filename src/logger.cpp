@@ -67,8 +67,7 @@ void Logger::log(LogLevel level, std::string_view file, int line,
     std::lock_guard<std::mutex> lock(mutex_);
 
     std::ostream &out = (level == LogLevel::ERROR) ? std::cerr : std::cout;
-    out << "[" << timeStr << "] [" << levelStr << "] [" << filename << ":"
-        << line << "] " << escapedMsg << '\n';
+    out << "[" << timeStr << "] [" << levelStr << "] " << escapedMsg << '\n';
     if (level == LogLevel::ERROR) {
         out.flush();
     }

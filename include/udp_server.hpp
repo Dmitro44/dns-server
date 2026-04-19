@@ -32,8 +32,6 @@ class UDPServer {
 
     static void log_query(const std::string &client_ip, uint16_t client_port,
                           const std::string &qname, uint16_t qtype);
-
-    static std::string get_timestamp();
 };
 
 } // namespace dns

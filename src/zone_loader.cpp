@@ -1,7 +1,7 @@
 #include "zone_loader.hpp"
+#include "logger.hpp"
 #include <arpa/inet.h>
 #include <fstream>
-#include <iostream>
 #include <sstream>
 
 namespace dns {
@@ -9,8 +9,7 @@ namespace dns {
 bool ZoneLoader::load(const std::string &zone_file_path) {
     std::ifstream file(zone_file_path);
     if (!file.is_open()) {
-        std::cerr << "Failed to open zone file: " << zone_file_path
-                  << std::endl;
+        LOG_ERROR("Failed to open zone file: " << zone_file_path);
         return false;
     }
 

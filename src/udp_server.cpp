@@ -1,10 +1,10 @@
 #include "udp_server.hpp"
 #include "dns_packet.hpp"
+#include "logger.hpp"
 #include <arpa/inet.h>
 #include <chrono>
 #include <cstring>
 #include <iomanip>
-#include <iostream>
 #include <netinet/in.h>
 #include <sstream>
 #include <sys/socket.h>
@@ -49,9 +49,7 @@ UDPServer::~UDPServer() {
 
 void UDPServer::start() {
     running_ = true;
-    std::cout << "[" << get_timestamp() << "] DNS Server listening on port "
-              << port_ << "...\n"
-              << std::flush;
+    LOG_INFO("DNS Server listening on port " << port_ << "...");
 
     uint8_t buffer[512];
 
@@ -67,15 +65,14 @@ void UDPServer::start() {
             if (!running_) {
                 break;
             }
-            std::cerr << "[" << get_timestamp()
-                      << "] Error receiving data: " << strerror(errno) << "\n";
+            LOG_ERROR("Error receiving data: " << strerror(errno));
             continue;
         }
 
         handle_query(buffer, recv_len, client_addr);
     }
 
-    std::cout << "[" << get_timestamp() << "] Server shutting down...\n";
+    LOG_INFO("Server shutting down...");
 }
 
 void UDPServer::stop() { running_ = false; }
@@ -88,29 +85,25 @@ void UDPServer::handle_query(const uint8_t *data, size_t len,
 
     DNSPacket query;
     if (!query.parse(data, len)) {
-        std::cerr << "[" << get_timestamp() << "] Failed to parse query from "
-                  << client_ip << ":" << client_port << "\n";
+        LOG_ERROR("Failed to parse query from " << client_ip << ":" << client_port);
         return;
     }
 
     if (query.questions.empty()) {
-        std::cerr << "[" << get_timestamp() << "] Query has no questions from "
-                  << client_ip << ":" << client_port << "\n";
+        LOG_ERROR("Query has no questions from " << client_ip << ":" << client_port);
         return;
     }
 
     const auto &question = query.questions[0];
     log_query(client_ip, client_port, question.qname, question.qtype);
 
-    std::cout << "[DEBUG] Parsed qname: '" << question.qname
-              << "' (len=" << question.qname.length() << ")\n"
-              << std::flush;
+    LOG_DEBUG("Parsed qname: '" << question.qname
+              << "' (len=" << question.qname.length() << ")");
 
     DNSPacket response = resolver_.resolve(query);
 
-    std::cout << "[DEBUG] Response RCODE: " << (response.header.flags & 0x0F)
-              << ", answers: " << response.answers.size() << "\n"
-              << std::flush;
+    LOG_DEBUG("Response RCODE: " << (response.header.flags & 0x0F)
+              << ", answers: " << response.answers.size());
 
     std::vector<uint8_t> response_data = response.serialize();
 
@@ -119,8 +112,7 @@ void UDPServer::handle_query(const uint8_t *data, size_t len,
                (struct sockaddr *)&client_addr, sizeof(client_addr));
 
     if (sent_len < 0) {
-        std::cerr << "[" << get_timestamp() << "] Failed to send response to "
-                  << client_ip << ":" << client_port << "\n";
+        LOG_ERROR("Failed to send response to " << client_ip << ":" << client_port);
     }
 }
 
@@ -147,17 +139,8 @@ void UDPServer::log_query(const std::string &client_ip, uint16_t client_port,
         type_str = "TYPE" + std::to_string(qtype);
     }
 
-    std::cout << "[" << get_timestamp() << "] Query from " << client_ip << ":"
-              << client_port << " for " << qname << " (" << type_str << ")\n"
-              << std::flush;
-}
-
-std::string UDPServer::get_timestamp() {
-    auto now = std::chrono::system_clock::now();
-    auto time_t = std::chrono::system_clock::to_time_t(now);
-    std::stringstream ss;
-    ss << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S");
-    return ss.str();
+    LOG_INFO("Query from " << client_ip << ":"
+              << client_port << " for " << qname << " (" << type_str << ")");
 }
 
 } // namespace dns
