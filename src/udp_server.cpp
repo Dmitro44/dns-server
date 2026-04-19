@@ -9,6 +9,7 @@
 #include <sstream>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <errno.h>
 
 namespace dns {
 
@@ -61,9 +62,13 @@ void UDPServer::start() {
             recvfrom(socket_fd_, buffer, sizeof(buffer), 0,
                      (struct sockaddr *)&client_addr, &client_len);
 
+        if (!running_) {
+            break;
+        }
+
         if (recv_len < 0) {
-            if (!running_) {
-                break;
+            if (errno == EINTR) {
+                continue;
             }
             LOG_ERROR("Error receiving data: " << strerror(errno));
             continue;
@@ -75,7 +80,13 @@ void UDPServer::start() {
     LOG_INFO("Server shutting down...");
 }
 
-void UDPServer::stop() { running_ = false; }
+void UDPServer::stop() {
+    running_ = false;
+    if (socket_fd_ >= 0) {
+        // Shutdown the socket to break the blocking recvfrom call
+        shutdown(socket_fd_, SHUT_RD);
+    }
+}
 
 void UDPServer::handle_query(const uint8_t *data, size_t len,
                              const struct sockaddr_in &client_addr) {
