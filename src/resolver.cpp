@@ -58,7 +58,8 @@ bool Resolver::follow_cname_chain(
     const std::string &start_name, RecordType target_type,
     std::vector<DNSPacket::ResourceRecord> &answer_records, int depth) {
     if (depth >= MAX_CNAME_DEPTH) {
-        LOG_WARNING("CNAME chain too deep, possible loop detected for " << start_name);
+        LOG_WARNING("CNAME chain too deep, possible loop detected for "
+                    << start_name);
         return false;
     }
 

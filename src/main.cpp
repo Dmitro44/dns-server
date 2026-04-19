@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
     dns::Resolver resolver(loader);
 
     try {
-        g_server = std::make_unique<dns::UDPServer>(config.port, resolver);
+        g_server = std::make_unique<dns::UDPServer>(config.port, config.threads, resolver);
 
         signal(SIGINT, signal_handler);
         signal(SIGTERM, signal_handler);
