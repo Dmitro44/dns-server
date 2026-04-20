@@ -1,4 +1,5 @@
 #include "cache.hpp"
+#include "logger.hpp"
 #include <mutex>
 
 namespace dns {
@@ -29,6 +30,8 @@ void DNSCache::put(const std::string &name, uint16_t type,
 
     cache_list_.emplace_front(std::make_pair(key, value));
     cache_map_[key] = cache_list_.begin();
+
+    LOG_INFO("Cache PUT: " << name << " Type: " << type << " TTL: " << ttl);
 }
 
 std::optional<std::vector<DNSPacket::ResourceRecord>>
@@ -50,15 +53,18 @@ DNSCache::get(const std::string &name, uint16_t type) {
             // Promote to front of LRU (most recently used)
             cache_list_.splice(cache_list_.begin(), cache_list_, it->second);
 
+            LOG_DEBUG("Cache HIT: " << name << " Type: " << type);
             return records;
         } else {
             // Expired, so we should clean it up
             cache_list_.erase(it->second);
             cache_map_.erase(it);
+            LOG_DEBUG("Cache EXPIRED: " << name << " Type: " << type);
         }
     }
 
     misses_.fetch_add(1, std::memory_order_relaxed);
+    LOG_DEBUG("Cache MISS: " << name << " Type: " << type);
     return std::nullopt;
 }
 

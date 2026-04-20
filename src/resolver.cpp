@@ -12,7 +12,8 @@ static std::string normalize_name(const std::string &name) {
     return name + '.';
 }
 
-Resolver::Resolver(ZoneLoader &zone_loader) : zone_loader_(zone_loader) {}
+Resolver::Resolver(ZoneLoader &zone_loader, DNSCache &cache)
+    : zone_loader_(zone_loader), cache_(cache) {}
 
 DNSPacket Resolver::resolve(const DNSPacket &query) {
     DNSPacket response;
@@ -28,14 +29,38 @@ DNSPacket Resolver::resolve(const DNSPacket &query) {
     response.header.qdcount = 1;
 
     std::string qname = normalize_name(question.qname);
-
     RecordType query_type = static_cast<RecordType>(question.qtype);
 
+    // Check Cache first
+    auto cached_records = cache_.get(qname, question.qtype);
+    if (cached_records.has_value()) {
+        response.answers = std::move(*cached_records);
+        response.header.ancount =
+            static_cast<uint16_t>(response.answers.size());
+        set_response_flags(
+            response.header, false,
+            0); // Cached responses are generally non-authoritative
+        return response;
+    }
+
+    // Cache Miss, proceed with normal resolution
     if (query_type == RecordType::A || query_type == RecordType::AAAA) {
         if (follow_cname_chain(qname, query_type, response.answers)) {
             set_response_flags(response.header, true, 0);
             response.header.ancount =
                 static_cast<uint16_t>(response.answers.size());
+
+            // Assuming default TTL of 60 for resolved records without explicit
+            // TTL logic
+            uint32_t min_ttl = 60;
+            if (!response.answers.empty()) {
+                min_ttl = response.answers[0].ttl;
+                for (const auto &ans : response.answers) {
+                    if (ans.ttl < min_ttl)
+                        min_ttl = ans.ttl;
+                }
+            }
+            cache_.put(qname, question.qtype, response.answers, min_ttl);
         } else {
             set_response_flags(response.header, true, 3);
         }
@@ -46,6 +71,16 @@ DNSPacket Resolver::resolve(const DNSPacket &query) {
             response.header.ancount =
                 static_cast<uint16_t>(response.answers.size());
             set_response_flags(response.header, true, 0);
+
+            uint32_t min_ttl = 60;
+            if (!response.answers.empty()) {
+                min_ttl = response.answers[0].ttl;
+                for (const auto &ans : response.answers) {
+                    if (ans.ttl < min_ttl)
+                        min_ttl = ans.ttl;
+                }
+            }
+            cache_.put(qname, question.qtype, response.answers, min_ttl);
         } else {
             set_response_flags(response.header, true, 3);
         }

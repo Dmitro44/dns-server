@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cache.hpp"
 #include "dns_packet.hpp"
 #include "zone_loader.hpp"
 
@@ -8,14 +9,15 @@ namespace dns {
 // DNS resolver - queries zone data and constructs DNS responses
 class Resolver {
   public:
-    // Constructor: takes reference to zone loader
-    explicit Resolver(ZoneLoader &zone_loader);
+    // Constructor: takes reference to zone loader and cache
+    explicit Resolver(ZoneLoader &zone_loader, DNSCache &cache);
 
     // Resolve a DNS query packet and return response packet
     DNSPacket resolve(const DNSPacket &query);
 
   private:
     ZoneLoader &zone_loader_;
+    DNSCache &cache_;
 
     // Maximum CNAME chain depth to prevent infinite loops
     static constexpr int MAX_CNAME_DEPTH = 10;

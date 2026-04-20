@@ -3,6 +3,7 @@
 #include "resolver.hpp"
 #include "udp_server.hpp"
 #include "zone_loader.hpp"
+#include "cache.hpp"
 #include <csignal>
 #include <memory>
 
@@ -26,7 +27,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    dns::Resolver resolver(loader);
+    dns::DNSCache cache;
+    dns::Resolver resolver(loader, cache);
 
     try {
         g_server = std::make_unique<dns::UDPServer>(config.port, config.threads, resolver);
