@@ -9,12 +9,13 @@ DNSCache::DNSCache(size_t max_size) : max_size_(max_size > 0 ? max_size : 1) {}
 void DNSCache::put(const std::string &name, uint16_t type,
                    const std::vector<DNSPacket::ResourceRecord> &records,
                    uint32_t ttl) {
-    if (records.empty()) {
+    bool is_negative = records.empty();
+    if (is_negative && ttl == 0) {
         return;
     }
 
     CacheKey key{name, type};
-    CacheValue value{records, std::chrono::steady_clock::now(), ttl};
+    CacheValue value{records, std::chrono::steady_clock::now(), ttl, is_negative};
 
     std::lock_guard<std::mutex> lock(mutex_);
 
@@ -53,7 +54,11 @@ DNSCache::get(const std::string &name, uint16_t type) {
             // Promote to front of LRU (most recently used)
             cache_list_.splice(cache_list_.begin(), cache_list_, it->second);
 
-            LOG_DEBUG("Cache HIT: " << name << " Type: " << type);
+            if (it->second->second.is_negative) {
+                LOG_DEBUG("Cache HIT (NEGATIVE): " << name << " Type: " << type);
+            } else {
+                LOG_DEBUG("Cache HIT: " << name << " Type: " << type);
+            }
             return records;
         } else {
             // Expired, so we should clean it up

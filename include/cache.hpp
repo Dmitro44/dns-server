@@ -33,6 +33,7 @@ struct CacheValue {
     std::vector<DNSPacket::ResourceRecord> records;
     std::chrono::steady_clock::time_point timestamp;
     uint32_t ttl;
+    bool is_negative;
 };
 
 class DNSCache {

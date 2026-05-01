@@ -37,9 +37,9 @@ DNSPacket Resolver::resolve(const DNSPacket &query) {
         response.answers = std::move(*cached_records);
         response.header.ancount =
             static_cast<uint16_t>(response.answers.size());
-        set_response_flags(
-            response.header, false,
-            0); // Cached responses are generally non-authoritative
+        
+        uint8_t rcode = response.answers.empty() ? 3 : 0;
+        set_response_flags(response.header, false, rcode);
         return response;
     }
 
@@ -63,6 +63,7 @@ DNSPacket Resolver::resolve(const DNSPacket &query) {
             cache_.put(qname, question.qtype, response.answers, min_ttl);
         } else {
             set_response_flags(response.header, true, 3);
+            cache_.put(qname, question.qtype, {}, 60);
         }
     } else {
         auto records = zone_loader_.get_records(qname, query_type);
@@ -83,6 +84,7 @@ DNSPacket Resolver::resolve(const DNSPacket &query) {
             cache_.put(qname, question.qtype, response.answers, min_ttl);
         } else {
             set_response_flags(response.header, true, 3);
+            cache_.put(qname, question.qtype, {}, 60);
         }
     }
 
