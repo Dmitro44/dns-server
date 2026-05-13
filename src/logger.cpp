@@ -42,10 +42,7 @@ void Logger::log(LogLevel level, const std::string &message) {
     std::lock_guard<std::mutex> lock(mutex_);
 
     std::ostream &out = (level == LogLevel::ERROR) ? std::cerr : std::cout;
-    out << "[" << timeStr << "] [" << levelStr << "] " << escapedMsg << '\n';
-    if (level == LogLevel::ERROR) {
-        out.flush();
-    }
+    out << "[" << timeStr << "] [" << levelStr << "] " << escapedMsg << std::endl;
 }
 
 void Logger::log(LogLevel level, std::string_view file, int line,
@@ -67,10 +64,7 @@ void Logger::log(LogLevel level, std::string_view file, int line,
     std::lock_guard<std::mutex> lock(mutex_);
 
     std::ostream &out = (level == LogLevel::ERROR) ? std::cerr : std::cout;
-    out << "[" << timeStr << "] [" << levelStr << "] " << escapedMsg << '\n';
-    if (level == LogLevel::ERROR) {
-        out.flush();
-    }
+    out << "[" << timeStr << "] [" << levelStr << "] " << escapedMsg << std::endl;
 }
 
 std::string Logger::currentDateTime() {

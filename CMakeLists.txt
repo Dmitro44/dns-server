@@ -13,12 +13,19 @@ add_executable(dns-server src/main.cpp src/dns_packet.cpp src/dns_record.cpp src
 target_link_libraries(dns-server PRIVATE Threads::Threads)
 
 enable_testing()
-add_executable(logger_test tests/logger_test.cpp src/logger.cpp)
-add_executable(config_test tests/config_test.cpp src/config.cpp)
-add_executable(cache_test tests/cache_test.cpp src/cache.cpp src/dns_packet.cpp src/dns_record.cpp src/logger.cpp)
-target_link_libraries(logger_test PRIVATE Threads::Threads)
-target_link_libraries(config_test PRIVATE Threads::Threads)
-target_link_libraries(cache_test PRIVATE Threads::Threads)
-add_test(NAME LoggerTest COMMAND logger_test)
-add_test(NAME CacheTest COMMAND cache_test)
 file(COPY config.ini DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY zones DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
+# Stress and Shutdown tests
+add_executable(shutdown_test tests/shutdown_test.cpp)
+target_link_libraries(shutdown_test PRIVATE Threads::Threads)
+# Note: shutdown_test requires the path to the server binary
+add_test(NAME ShutdownTest COMMAND shutdown_test ./dns-server)
+
+# C++ Stress Test
+add_executable(stress_test tests/stress_test.cpp)
+target_link_libraries(stress_test PRIVATE Threads::Threads)
+
+# Performance Wrapper
+add_executable(perf_test tests/perf_wrapper.cpp)
+add_test(NAME PerformanceTest COMMAND perf_test ./dns-server ./stress_test 4 5000 20)
