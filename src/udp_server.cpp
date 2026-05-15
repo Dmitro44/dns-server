@@ -41,8 +41,10 @@ UDPServer::UDPServer(uint16_t port, size_t thread_count, Resolver &resolver)
 }
 
 UDPServer::~UDPServer() {
+    stop();
     if (socket_fd_ >= 0) {
         close(socket_fd_);
+        socket_fd_ = -1;
     }
 }
 
@@ -65,7 +67,7 @@ void UDPServer::start() {
         }
 
         if (recv_len < 0) {
-            if (errno == EINTR) {
+            if (errno == EINTR || errno == EBADF) {
                 continue;
             }
             LOG_ERROR("Error receiving data: " << strerror(errno));
@@ -83,10 +85,12 @@ void UDPServer::start() {
 }
 
 void UDPServer::stop() {
-    running_ = false;
-    if (socket_fd_ >= 0) {
-        // Shutdown the socket to break the blocking recvfrom call
-        shutdown(socket_fd_, SHUT_RD);
+    bool expected = true;
+    if (running_.compare_exchange_strong(expected, false)) {
+        if (socket_fd_ >= 0) {
+            // Shutdown the socket to break the blocking recvfrom call
+            shutdown(socket_fd_, SHUT_RD);
+        }
     }
 }
 
